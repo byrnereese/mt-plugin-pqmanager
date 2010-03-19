@@ -5,6 +5,8 @@ package PQManager::Plugin;
 
 use strict;
 use MT::Util qw( relative_date epoch2ts iso2ts );
+use warnings;
+use Carp;
 
 sub mode_delete {
     my $app = shift;
@@ -84,18 +86,18 @@ sub mode_list_queue {
         my ($job, $row) = @_;
 
         $row->{'insert_time_raw'} = $job->insert_time;
-        my $fi                    = MT::FileInfo->load({ id => $job->uniqkey });
-        my $err                   = MT::TheSchwartz::Error->load({ jobid => $job->jobid });
-        $tmpls{$fi->template_id}  = MT::Template->load({ id => $fi->template_id })
-                unless $tmpls{$fi->template_id};
-        my $tmpl                  = $tmpls{$fi->template_id};
+        my $fi  = MT::FileInfo->load({ id => $job->uniqkey });
+        my $err = MT::TheSchwartz::Error->load({ jobid => $job->jobid });
+
+        $tmpls{$fi->template_id} ||= MT::Template->load({ id => $fi->template_id });
+        my $tmpl                   = $tmpls{$fi->template_id};
 
         if ($tmpl) {
-            $blogs{$tmpl->blog_id}  ||= MT::Blog->load({ id => $tmpl->blog_id });
-            my $blog                  = $blogs{$tmpl->blog_id};
-            $row->{'blog'}            = $blog->name;
-            $row->{'template'}        = $tmpl->name;
-            $row->{'path'}            = $fi->file_path;
+            my $blog = $blogs{$tmpl->blog_id}  
+                   ||= MT::Blog->load({ id => $tmpl->blog_id });
+            $row->{'blog'}     = $blog->name;
+            $row->{'template'} = $tmpl->name;
+            $row->{'path'}     = $fi->file_path;
         } else {
             $row->{'blog'}            = '<em>Deleted</em>';
             $row->{'template'}        = '<em>Deleted</em>';
@@ -115,37 +117,37 @@ sub mode_list_queue {
     my $fm = MT::TheSchwartz::FuncMap->load(
         {funcname => 'MT::Worker::Publish'});
 
-    return $app->error("It appears that your have never used publish queue before. To enable publish queue, set any template to publish \"Via Publish Queue\" and then save and publish that template. Then return to this screen to see everything humming along.") unless ($fm);
+    $fm or return $app->error(
+        'It appears that your have never used publish queue before. '
+        .'To enable publish queue, set any template to publish '
+        .'"Via Publish Queue" and then save and publish that template. '
+        .'Then return to this screen to see everything humming along.');
 
     # %terms is used in case you want to filter the query that will fetch
     # the items from the database that correspond to the rows of the table
     # being rendered to the screen
-    my %terms = (
-         funcid => $fm->funcid,
-         );
+    my %terms = ( funcid => $fm->funcid );
 
     # %args is used in case you want to sort or otherwise modify the 
     # query arguments of the table, e.g. the sort order or direction of
     # the query associated with the data being displayed in the table.
-    require MT::FileInfo;
     my $clause = ' = ts_job_uniqkey';
     my %args = (
-#        sort => 'priority',
         sort  => [
                    { column => "priority", desc => "DESC" },
                    { column => "insert_time", }
                ],
         direction => 'descend',
         join => MT::FileInfo->join_on( undef, { id => \$clause }),
-        );
+    );
 
     # %params is an addition hash of input parameters into the template
     # and can be used to hold an arbitrary set of name/value pairs that
     # can be displayed in your template.
     my $params = {
-        'is_deleted'  => $q->param('deleted') ? 1 : 0,
+        'is_deleted'  => $q->param('deleted')  ? 1 : 0,
         'is_priority' => $q->param('priority') ? 1 : 0,
-        'priority' => $q->param('priority'),
+        ($q->param('priority') ? ('priority' => $q->param('priority')) : ())
     };
 
     # Fetch an instance of the current plugin using the plugin's key.
@@ -158,16 +160,15 @@ sub mode_list_queue {
     # query is filtered and controlled using the %terms and %args 
     # parameters, with 'type' corresponding to the database table you
     # will query.
-    $app->listing({
-        type     => 'ts_job', # the ID of the object in the registry
-        terms    => \%terms,
-        args     => \%args,
+    return $app->listing({
+        type           => 'ts_job', # the object's MT->model
+        terms          => \%terms,
+        args           => \%args,
         listing_screen => 1,
-        code     => $code,
-        template => $plugin->load_tmpl('list.tmpl'),
-        params   => $params,
+        code           => $code,
+        template       => $plugin->load_tmpl('list.tmpl'),
+        params         => $params,
     });
-
 }
 
 1;
