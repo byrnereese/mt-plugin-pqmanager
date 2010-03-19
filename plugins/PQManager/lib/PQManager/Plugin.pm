@@ -32,7 +32,7 @@ sub mode_priority {
 
     my $pri = $app->param('itemset_action_input');
     if ($pri !~ /^[0-9]+$/) {
-	return $app->error("You must enter a number between 1 and 10.");
+        return $app->error("You must enter a number between 1 and 10.");
     }
 
     require MT::TheSchwartz::Job;
@@ -40,7 +40,7 @@ sub mode_priority {
     for my $job_id (@jobs) {
         my $job = MT::TheSchwartz::Job->load({jobid => $job_id}) or next;
         $job->priority($pri);
-	$job->save();
+        $job->save();
     }
     $app->redirect(
             $app->uri(
@@ -90,18 +90,17 @@ sub mode_list_queue {
                 unless $tmpls{$fi->template_id};
         my $tmpl                  = $tmpls{$fi->template_id};
 
-	if ($tmpl) {
-	    $blogs{$tmpl->blog_id}    = MT::Blog->load({ id => $tmpl->blog_id })
-		unless $blogs{$tmpl->blog_id};
-	    my $blog                  = $blogs{$tmpl->blog_id};
-	    $row->{'blog'}            = $blog->name;
-	    $row->{'template'}        = $tmpl->name;
-	    $row->{'path'}            = $fi->file_path;
-	} else {
-	    $row->{'blog'}            = '<em>Deleted</em>';
-	    $row->{'template'}        = '<em>Deleted</em>';
-	    $row->{'path'}            = '<em>Deleted</em>';
-	}
+        if ($tmpl) {
+            $blogs{$tmpl->blog_id}  ||= MT::Blog->load({ id => $tmpl->blog_id });
+            my $blog                  = $blogs{$tmpl->blog_id};
+            $row->{'blog'}            = $blog->name;
+            $row->{'template'}        = $tmpl->name;
+            $row->{'path'}            = $fi->file_path;
+        } else {
+            $row->{'blog'}            = '<em>Deleted</em>';
+            $row->{'template'}        = '<em>Deleted</em>';
+            $row->{'path'}            = '<em>Deleted</em>';
+        }
         my $ts                    = epoch2ts(undef, $job->insert_time);
         $row->{'id'}              = $job->jobid;
         $row->{'priority'}        = $job->priority;
